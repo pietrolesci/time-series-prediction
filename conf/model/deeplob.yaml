@@ -1,0 +1,6 @@
+_target_: src.models.DeepLOBConfig
+num_levels: 15
+conv_out_channels: 32
+incep_out_channels: 64
+lstm_hidden_size: 64
+is_classification: false

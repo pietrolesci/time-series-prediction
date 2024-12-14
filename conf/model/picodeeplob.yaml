@@ -1,0 +1,14 @@
+_target_: src.models.PicoDeepLOBConfig
+num_levels: 15
+conv_out_channels: 32
+incep_out_channels: 64
+lstm_hidden_size: 64
+is_classification: false
+
+n_layers: 2
+max_seq_len: 128
+attention_n_heads: 8
+attention_n_kv_heads: 4
+activation_hidden_dim: 256
+norm_eps: 1e-6
+position_emb_theta: 10000.0

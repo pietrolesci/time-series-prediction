@@ -1,0 +1,6 @@
+prediction_writer:
+  _target_: src.callbacks.prediction_writer.PredictionWriter
+  out_dir: predictions
+  save_on_train: false
+  save_on_validation: true
+  save_on_test: true
