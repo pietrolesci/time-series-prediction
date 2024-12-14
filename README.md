@@ -1,4 +1,4 @@
-# Time-series Prediction from Limit Order Book Data
+# Time-series Prediction for Limit Order Book Data
 
 
 <img src="assets/dalle_image.png" alt="DALL-E generated image" style="width: 30%;">
