@@ -3,7 +3,7 @@
 
 <img src="assets/dalle_image.png" alt="DALL-E generated image" style="width: 30%;">
 
-This repository contains code and instructions for time-series prediction on limit order book data using deep learning models. The goal is to provide a comprehensive yet easy-to-use framework for data preparation, model training, and evaluation.
+This repository contains code to implement time-series prediction on limit order book data using deep learning models. The goal is to provide a comprehensive yet easy-to-use framework for data preparation, model training, and evaluation.
 
 
 ## 1. Setup
