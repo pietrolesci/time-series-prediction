@@ -1,4 +1,16 @@
-# time-series-prediction
+# Time-series Prediction from Limit Order Book Data
+
+
+<div style="display: flex;">
+    <div style="flex: 50%; padding-left: 10px;">
+        This repository contains code and instructions for time-series prediction on limit order book data using deep learning models. The goal is to provide a comprehensive, yet easy-to-use, framework for data preparation, model training, and evaluation.
+    </div>
+    <div style="flex: 30%;">
+        <img src="assets/dalle_image.png" alt="DALL-E generated image" style="width: 100%;">
+        <p style="text-align: center;">Credits to ChatGPT</p>
+    </div>
+</div>
+
 
 ## 1. Setup
 
