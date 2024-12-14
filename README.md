@@ -82,7 +82,7 @@ Finally, we write to disk the model predictions every time we run validation (ad
 
 
 
-## Evaluation
+## 4. Evaluation
 
 The training scripts directly compute evaluation scores. Specifically, during training, we run the evaluation 4 times per epoch on both the validation and the test splits. Note: the test split is not used for model selection! We only add this to check how much our validation and test scores correlate. This is useful to know because once we pin down the correct training recipe, to create the model artefact to submit, we will use 90% of the data as training and only the last 10% for model selection; in this way, we use as much data as possible to train before submitting.
 
