@@ -37,6 +37,7 @@ class DataloaderConfig(DictConfig):
         kwargs = copy(self.to_dict())
         kwargs["batch_size"] = kwargs.pop("eval_batch_size")
         kwargs["shuffle"] = False
+        kwargs["drop_last"] = False
         return kwargs
 
 
