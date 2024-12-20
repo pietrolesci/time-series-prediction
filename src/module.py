@@ -1,11 +1,10 @@
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from functools import cached_property
 
 from lightning.pytorch import LightningModule
 from torch import Tensor
-from torch.nn.functional import cross_entropy, mse_loss
+from torch.nn.functional import mse_loss
 from torch.optim.adamw import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from torch.optim.optimizer import Optimizer
@@ -47,22 +46,24 @@ class RunningStage(StrEnum):
     TEST = "test"
 
 
-def get_reg_metrics(stage: str | RunningStage, dl_name: str | None = None) -> MetricCollection:
+def get_metrics(stage: str | RunningStage, dl_name: str | None = None) -> MetricCollection:
     metrics = {"r2": R2Score()}
     return MetricCollection(metrics, prefix=f"{stage}/", postfix=f"_{dl_name}" if dl_name else "")  # type: ignore
 
 
-# def get_clf_metrics(stage: str | RunningStage) -> MetricCollection:
-#     kwargs = {"task": "multiclass", "num_classes": TOTAL_NUMBER_OF_CLASSES}
-#     metrics = {
-#         "f1_micro": F1Score(average="micro", **kwargs),
-#         "f1_macro": F1Score(average="macro", **kwargs),
-#         "precision": Precision(average="macro", **kwargs),
-#         "recall": Recall(average="macro", **kwargs),
-#         "accuracy": Accuracy(**kwargs),
-#         "mse": MeanSquaredError(),
-#     }
-#     return MetricCollection(metrics, prefix=f"{stage}/")
+def multi_mse_loss(preds: Tensor, y: Tensor) -> Tensor:
+    # compute mean across batch size and sum over targets
+    return (preds - y).pow(2).mean(dim=0).sum()
+
+
+def get_pred_stats(preds: Tensor) -> dict[str, Tensor]:
+    detached_preds = preds.detach()
+    return {
+        "pred_mean": detached_preds.mean(),
+        "pred_std": detached_preds.std(),
+        "pred_min": detached_preds.min(),
+        "pred_max": detached_preds.max(),
+    }
 
 
 class LOBModel(LightningModule):
@@ -74,21 +75,15 @@ class LOBModel(LightningModule):
 
         # Having the config instantiating the model allows us to not pass the model class explicitly
         self.model = config.get_model()
-        self.loss_fn = cross_entropy if self.config.is_classification else mse_loss
+        self.loss_fn = multi_mse_loss if config.num_targets > 1 else mse_loss
 
         # Define metrics
         for stage in RunningStage:
             if stage == RunningStage.VALIDATION:
                 for dl_name in [RunningStage.VALIDATION, RunningStage.TEST]:
-                    setattr(self, f"{stage}_reg_metrics_{dl_name}", get_reg_metrics(stage, dl_name))
+                    setattr(self, f"{stage}_metrics_{dl_name}", get_metrics(stage, dl_name))
             else:
-                setattr(self, f"{stage}_reg_metrics", get_reg_metrics(stage))
-            # if self.config.is_classification:
-            #     setattr(self, f"{stage}_clf_metrics", get_clf_metrics(stage))
-
-    @cached_property
-    def should_mask_padding(self) -> bool:
-        return self.trainer.datamodule.should_mask_padding  # type: ignore
+                setattr(self, f"{stage}_metrics", get_metrics(stage))
 
     def forward(self, x: Tensor) -> Tensor:
         return self.model.forward(x)
@@ -98,16 +93,24 @@ class LOBModel(LightningModule):
         x, y, idx = batch["X"], batch["y"], batch["idx"]
         preds = self.forward(x)
 
-        # prepare outputs and logs
+        if stage != RunningStage.TRAIN:
+            preds = preds[:, [0]]  # [batch_size, 1]
+
+        # loss
+        # if self.should_mask_padding:
+        #     mask = y != -100
+        #     preds, y = preds[mask], y[mask]  # these get flattened
+        loss = self.loss_fn(preds, y)
+
+        # metrics
+        metrics = getattr(self, f"{stage}_metrics{suffix}")
+        metrics(preds, y)
+
+        # log
         detached_pred = preds.detach()
         out = {"preds": detached_pred, "y": y, "idx": idx}
-        out = {k: v[..., -1] if v.dim() > 1 else v for k, v in out.items()}
-        logs = {
-            "pred_mean": detached_pred.mean(),
-            "pred_std": detached_pred.std(),
-            "pred_min": detached_pred.min(),
-            "pred_max": detached_pred.max(),
-        }
+        logs = {**get_pred_stats(detached_pred), "loss": loss.detach()}
+
         log_kwargs = {
             "on_step": stage == RunningStage.TRAIN,
             "on_epoch": stage != RunningStage.TRAIN,
@@ -116,30 +119,8 @@ class LOBModel(LightningModule):
             "batch_size": y.shape[0],
             "add_dataloader_idx": False,
         }
-
-        # compute loss and log it
-        if self.should_mask_padding:
-            mask = y != -100
-            preds, y = preds[mask], y[mask]  # these get flattened
-        loss = self.loss_fn(preds, y)
-
-        # log
-        logs["loss"] = loss.detach()
+        self.log_dict(metrics, **log_kwargs)
         self.log_dict({f"{stage}/{k}{suffix}": v for k, v in logs.items()}, **log_kwargs)
-
-        # compute and log metrics
-        reg_metrics = getattr(self, f"{stage}_reg_metrics{suffix}")
-        # if self.config.is_classification:
-        #     # for regression metrics convert to continuous values
-        #     reg_metrics(logits_to_continuous(preds), class_to_continuous(y))
-
-        #     # for classification keep it as is
-        #     clf_metrics = getattr(self, f"{stage}_clf_metrics{suffix}")
-        #     clf_metrics(preds, y)
-        #     self.log_dict(clf_metrics, on_step=False, on_epoch=True, prog_bar=False, logger=True)
-        # else:
-        reg_metrics(preds, y)
-        self.log_dict(reg_metrics, **log_kwargs)
 
         return {"loss": loss, **out}
 

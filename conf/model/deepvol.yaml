@@ -1,0 +1,4 @@
+_target_: src.models.deepvol.DeepVolConfig
+conv_out_channels: 32
+incep_out_channels: 64
+lstm_hidden_size: 64

@@ -25,16 +25,19 @@ def main(cfg: DictConfig) -> None:
 
     # Config
     OmegaConf.resolve(cfg)
-
-    if getattr(cfg.model, "max_seq_len", None) is not None:
-        cfg.datamodule.window_size = cfg.model.max_seq_len
-
     OmegaConf.save(cfg, "./hparams.yaml")
     logger.info(f"\n{OmegaConf.to_yaml(cfg)}\n{SEP_LINE}")
 
+    # Load datamodule
+    dataloader_config = DataloaderConfig(**conf_to_dict(cfg.data))
+    datamodule = DataModule(dataloader_config=dataloader_config, **conf_to_dict(cfg.datamodule))
+    datamodule.setup()
+
     # Load module
-    config: MODEL_CONFIG = instantiate_from_conf(cfg.model)  # type: ignore
-    module = LOBModel(config, OptimCofig(**conf_to_dict(cfg.optim)))
+    config: MODEL_CONFIG = instantiate_from_conf(
+        cfg.model, num_targets=datamodule.num_targets, num_levels=datamodule.num_levels
+    )  # type: ignore
+    logger.info(f"Model config:\n{config.to_dict()}")  # type: ignore
 
     # Rename run folder in light of the model config
     cwd = Path.cwd()
@@ -43,19 +46,9 @@ def main(cfg: DictConfig) -> None:
     cwd.rename(new_name)
 
     # Maybe compile
+    module = LOBModel(config, OptimCofig(**conf_to_dict(cfg.optim)))
     if cfg.torch_compile:
         module.forward = torch.compile(module.forward)
-
-    logger.info(f"Model config:\n{config.to_dict()}")  # type: ignore
-
-    # Load datamodule
-    dataloader_config = DataloaderConfig(**conf_to_dict(cfg.data))
-    datamodule = DataModule(
-        dataloader_config=dataloader_config,
-        num_levels=config.num_levels,
-        is_classification=config.is_classification,
-        **conf_to_dict(cfg.datamodule),
-    )
 
     # Load trainer
     loggers, callbacks = instantiate_from_conf([cfg.get(i) for i in ("loggers", "callbacks")])

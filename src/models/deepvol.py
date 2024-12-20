@@ -2,35 +2,31 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
-from lightning import seed_everything
 
-from src.utilities import TOTAL_NUMBER_OF_LEVELS, DictConfig
+from src.models.deeplob import DeepLOBConfig
 
 
 @dataclass
-class DeepLOBConfig(DictConfig):
-    num_targets: int = 1
-    num_levels: int = TOTAL_NUMBER_OF_LEVELS
-    conv_out_channels: int = 32
-    incep_out_channels: int = 64
-    lstm_hidden_size: int = 64
-
+class DeepVolConfig(DeepLOBConfig):
     @property
     def name(self) -> str:
-        return f"deeplob-{self.num_levels}"
+        return f"deepvol-{self.num_levels}"
 
     def get_model(self) -> nn.Module:
-        seed_everything(42)
-        return DeepLOB(self)
+        return DeepVol(self)
 
 
-class DeepLOB(nn.Module):
-    def __init__(self, config: DeepLOBConfig) -> None:
+class DeepVol(nn.Module):
+    """Expects OrderFlow data at each level and predicts the midprice return up to 100 steps ahead.
+
+    [batch_size, T, 2L, 1] -> [batch_size, T, 1]
+    """
+
+    def __init__(self, config: DeepVolConfig) -> None:
         super().__init__()
 
         # Convolution blocks
-        self.conv1 = self._get_conv_block(1, config.conv_out_channels, (1, 2), (1, 2))
-        self.conv2 = self._get_conv_block(config.conv_out_channels, config.conv_out_channels, (1, 2), (1, 2))
+        self.conv2 = self._get_conv_block(1, config.conv_out_channels, (1, 2), (1, 2))
         self.conv3 = self._get_conv_block(
             config.conv_out_channels, config.conv_out_channels, (1, config.num_levels), (1, 1)
         )
@@ -53,7 +49,7 @@ class DeepLOB(nn.Module):
             batch_first=True,
         )
 
-        self.fc = nn.Sequential(nn.Linear(config.lstm_hidden_size, 1, bias=False), nn.Flatten(0))
+        self.fc = nn.Sequential(nn.Linear(config.lstm_hidden_size, config.num_targets, bias=True))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Add channel dimention
@@ -62,7 +58,6 @@ class DeepLOB(nn.Module):
 
         # Convolution blocks
         # x: batch_size, n_channels, seq_len, num_levels * 2
-        x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
 

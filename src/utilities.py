@@ -103,10 +103,10 @@ def conf_to_dict(x: DictConfig | None) -> dict:
     return {}
 
 
-def instantiate_from_conf(cfgs: DictConfig | list[DictConfig]) -> Any | list[Any]:
+def instantiate_from_conf(cfgs: DictConfig | list[DictConfig], **kwargs) -> Any | list[Any]:
     if isinstance(cfgs, list):
-        return [list(instantiate(cfg).values()) if cfg is not None else None for cfg in cfgs]
-    return instantiate(cfgs)
+        return [list(instantiate(cfg, **kwargs).values()) if cfg is not None else None for cfg in cfgs]
+    return instantiate(cfgs, **kwargs)
 
 
 def create_memmap_from_polars(file_path: str | Path, df: pl.DataFrame) -> None:

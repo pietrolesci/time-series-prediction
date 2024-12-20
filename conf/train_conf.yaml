@@ -3,26 +3,25 @@
 # =========================
 defaults:
   - loggers:
-    - tensorboard
+      - tensorboard
   - /callbacks:
-    - lr_monitor
-    - grad_norm
-    - speed_monitor
-    - model_checkpoint
-    - prediction_writer
+      - lr_monitor
+      - grad_norm
+      - speed_monitor
+      - model_checkpoint
+    # - prediction_writer
     # - early_stopping
-  - model: picodeeplob
+  - model: deepvol
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - _self_
-
 
 hydra:
   # adds colorlog to logging
   job_logging:
     formatters:
       colorlog:
-        format: '[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s][%(log_color)s%(levelname)s%(reset)s] - %(message)s'
+        format: "[%(cyan)s%(asctime)s%(reset)s][%(blue)s%(name)s%(reset)s][%(log_color)s%(levelname)s%(reset)s] - %(message)s"
         log_colors:
           DEBUG: purple
           INFO: green
@@ -39,22 +38,22 @@ hydra:
     dir: ./outputs/multirun/${out_parent_folder}
     subdir: ${run_folder}_${hydra.job.id}
 
-
 # Convenience
 run_folder: ${now:%Y-%m-%d}T${now:%H-%M-%S}
+data_repr: orderflow
 out_parent_folder: model_train
 seed: 42
-
 
 # Data
 repo_path: /home/pl487/time-series-prediction
 
 datamodule:
   window_size: 100
-  use_prev_y: false
-  train_data_path: ${repo_path}/data/train_memmap.npy
-  val_data_path: ${repo_path}/data/val_memmap.npy
-  test_data_path: ${repo_path}/data/test_memmap.npy
+  num_levels: 10
+  data_repr: ${data_repr}
+  train_data_path: ${repo_path}/data/${data_repr}/train_memmap.npy
+  val_data_path: ${repo_path}/data/${data_repr}/val_memmap.npy
+  test_data_path: ${repo_path}/data/${data_repr}/test_memmap.npy
 
 data:
   batch_size: 64
@@ -66,27 +65,25 @@ data:
   persistent_workers: true
   prefetch_factor: 2
   multiprocessing_context: null
-
+  snapshot_every_n_steps: 1000
 
 # Model
 resume_from_checkpoint: null
 save_initial_checkpoint: true
 torch_compile: false
 
-
 optim:
   optim_name: adamw
-  lr: 5e-3
+  lr: 0.01
   weight_decay: 0.1
   optim_kwargs:
     fused: true
-    eps: 1e-8
+    eps: 1e-2
     betas: [0.9, 0.95]
   scheduler_name: cosine_with_warmup
   # scheduler_kwargs:
   #   num_cycles: 40  # max_epochs * 4
   num_warmup_steps: 2000
-
 
 trainer:
   accelerator: gpu
@@ -103,4 +100,3 @@ trainer:
   # limit_train_batches: 10
   # limit_val_batches: 10
   # limit_test_batches: 10
-
